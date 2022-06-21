@@ -12,11 +12,11 @@ Pipeline for allele-specific variant calling from RNAseq. This pipeline has been
   - Hg38 reference file,reference annotation file and known variants sites files such as 1000G_phase1.snps.high_confidence.hg38.vcf.gz, Mills_and_1000G_gold_standard.indels.hg38.vcf.gz, all available at [GATK resource bundle](https://console.cloud.google.com/storage/browser/genomics-public-data/resources/broad/hg38/v0;tab=objects?prefix=&forceOnObjectsSortingFiltering=false).
 
 ## Running the pipeline
-### Step 1: Keep only genome regions covered by at least one ERCC samples
+### Step 1: Keep only genome regions covered by ERCC samples
 1. getBedCoveragePerStudy.pbs.txt: generate unioned coverage depth bedfile across ERCC studies
 2. getSumBedCoveragePerStudy.pbs.txt: utilize unionbedgByStudy.R to sumarize covered regions by study
-3. 
+3. maskRefGenome.pbs.txt: mask uncovered genome regions.
+4. Convert unioned ERCC genome coverage bedgraphs from version hg19 to hg38
 
-Convert unioned ERCC genome coverage bedgraphs from version hg19 to hg38
 ### Step 2: Construct (artificial) diploid genome
 ### Step 3: Call extracellularly expressed variants
