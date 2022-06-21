@@ -2,7 +2,7 @@
 #PBS -l nodes=1:ppn=5
 
 #Request x number of hours of walltime
-#PBS -l walltime=16:00:00
+#PBS -l walltime=18:00:00
 
 #Request 47 gigabyte of memory per process
 #PBS -l mem=47gb
@@ -110,20 +110,20 @@ gatk --java-options '-Xmx47G -DGATK_STACKTRACE_ON_USER_EXCEPTION=true' SplitNCig
 -O ${sample}.split.bam 
 echo "CiGar time: $(date)"
 
-#echo "------------------------------------------------------"
+echo "------------------------------------------------------"
 ## BQSR
-#gatk --java-options '-Xmx47G -DGATK_STACKTRACE_ON_USER_EXCEPTION=true' BaseRecalibrator \
-#-R $refGenomePath/../${ref}.fa \
-#-I ${sample}.split.bam \
-#--known-sites ${refGenomePath}/../resources-broad-hg38-#v0-1000G_phase1.snps.high_confidence.hg38.vcf.gz \
-#--known-sites ${refGenomePath}/../resources-broad-hg38-v0-#Mills_and_1000G_gold_standard.indels.hg38.vcf.gz \
-#-O ${sample}.recalibrated.bam.grp \
-#&& gatk --java-options '-Xmx47G -DGATK_STACKTRACE_ON_USER_EXCEPTION=true' ApplyBQSR \
-#-bqsr ${sample}.recalibrated.bam.grp \
-#-R $refGenomePath/../${ref}.fa \
-#-I ${sample}.split.bam \
-#-O ${sample}.recalibrated.bam 
-#echo "BQSR time: $(date)"
+gatk --java-options '-Xmx47G -DGATK_STACKTRACE_ON_USER_EXCEPTION=true' BaseRecalibrator \
+-R $refGenomePath/../${ref}.fa \
+-I ${sample}.split.bam \
+--known-sites ${refGenomePath}/../resources-broad-hg38-v0-1000G_phase1.snps.high_confidence.hg38.vcf.gz \
+--known-sites ${refGenomePath}/../resources-broad-hg38-v0-Mills_and_1000G_gold_standard.indels.hg38.vcf.gz \
+-O ${sample}.recalibrated.bam.grp \
+&& gatk --java-options '-Xmx47G -DGATK_STACKTRACE_ON_USER_EXCEPTION=true' ApplyBQSR \
+-bqsr ${sample}.recalibrated.bam.grp \
+-R $refGenomePath/../${ref}.fa \
+-I ${sample}.split.bam \
+-O ${sample}.recalibrated.bam 
+echo "BQSR time: $(date)"
 
 echo "------------------------------------------------------"
 # haplotypeCaller
