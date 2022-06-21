@@ -1,0 +1,34 @@
+# Request 1 processors on 1 node
+#PBS -l nodes=1:ppn=1
+
+#Request x number of hours of walltime
+#PBS -l walltime=08:00:00
+
+#Request 7 gigabyte of memory per process
+#PBS -l mem=15gb
+
+#Request that regular output and terminal output go to the same file
+#PBS -j oe
+#PBS -m abe
+
+date
+cd /mnt/nfs/arginine/data1/resAndStdt/transRegVar/exrna/bedgraphs
+
+
+module load BEDTools
+
+# sed '1d' unionbedg/ERCC.cov.bed > unionbedg/ERCC.cov.noheader.bed
+# sort -k1,1 -k2,2n unionbedg/ERCC.cov.noheader.bed > unionbedg/ERCC.cov.noheader.sort.bed
+
+# bedtools merge -i unionbedg/ERCC.cov.noheader.sort.bed > unionbedg/ERCC.cov.noheader.pbs.bed
+
+# cat ASAS.PMID33452016.bed unionbedg/ERCC.cov.noheader.merged.bed > unionbedg/regionsNeeded.bed
+
+# sort -k1,1 -k2,2n unionbedg/regionsNeeded.bed > unionbedg/regionsNeeded.sorted.bed
+
+awk 'BEGIN{FS="\t";OFS="\t"} {print $1,$2,$3,T}' unionbedg/regionsNeeded.sorted.bed > unionbedg/regionsNeeded.sorted.3col.bed
+
+bedtools merge -i unionbedg/regionsNeeded.sorted.3col.bed > unionbedg/regionsNeeded.sorted.merged.bed
+
+date
+

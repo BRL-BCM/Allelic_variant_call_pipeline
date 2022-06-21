@@ -1,0 +1,35 @@
+# Request 1 processors on 1 node
+#PBS -l nodes=1:ppn=1
+
+#Request x number of hours of walltime
+#PBS -l walltime=3:00:00
+
+#Request 15 gigabyte of memory per process
+#PBS -l mem=15gb
+
+#Request that regular output and terminal output go to the same file
+#PBS -j oe
+#PBS -m abe
+
+date
+
+WD=${WD}
+
+cd $WD
+
+FILES=$(ls *.sum.bed)
+for file in $FILES; do
+	sed '1d' $file > ${file}.new
+	rm $file
+	mv ${file}.new $file
+done
+
+
+STUDIES=$(ls *AN.bed|sed 's/.bed//g')
+
+for STUDY in $STUDIES; do
+	cat splited.${STUDY}.*.sum.bed > ${STUDY}.catsum.bed
+done
+
+
+date
