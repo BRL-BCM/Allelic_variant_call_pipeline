@@ -1,0 +1,29 @@
+# Request 1 processors on 1 node
+#PBS -l nodes=1:ppn=1
+
+#Request x number of hours of walltime
+#PBS -l walltime=00:50:00
+
+#Request 7 gigabyte of memory per process
+#PBS -l mem=2gb
+
+#Request that regular output and terminal output go to the same file
+#PBS -j oe
+#PBS -m abe
+
+date
+cd /mnt/nfs/arginine/data1/resAndStdt/transRegVar/exrna/bedgraphs
+
+STUDY=${STUDY}
+SAMPLES=$(ls $STUDY|grep "EXR")
+
+cd $STUDY
+xz -k -d *.xz
+
+module load BEDTools
+
+FILES=$(ls *.bedgraph)
+NAMES=$(ls *.bedgraph|awk -F_ '{print $1}')
+bedtools unionbedg -i $FILES -header -names $NAMES> ../unionbedg/${STUDY}.bed
+
+date
