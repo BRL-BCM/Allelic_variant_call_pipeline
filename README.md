@@ -20,3 +20,4 @@ Pipeline for allele-specific variant calling from RNAseq. This pipeline has been
 
 ### Step 2: Construct (artificial) diploid genome
 ### Step 3: Call extracellularly expressed variants
+ppl_vCall_ref_Hr4Rm47Prc4.pbs: calls extracellularly expressed variants with minimum reference bias.
