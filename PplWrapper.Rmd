@@ -1,0 +1,220 @@
+---
+title: "bamPplWrapper"
+author: "XL"
+date: "2/20/2022"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_depth: 2
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+vCdirPath="/mnt/nfs/arginine/data1/resAndStdt/transRegVar/exrna/vCall"
+# setwd("/Volumes/WD_BLACK/GG/ThesisProj/exRNA/vCall/")
+setwd(vCdirPath)
+ref="broad-hg38.masked.WcmmV" # STARind_broad-hg38.masked.WcmmV.tar.gz
+refdirName="masked_hg38_WcmmV" # masked_hg38_WcmmV.tar.gz
+# ftpjobs.og=ftpjobs=unlist(read.table("../fastq/fastq_copied.0228.txt",stringsAsFactors = F))
+# names(ftpjobs)=NULL
+load(sprintf("%s/pplWcmmVStatus.RData",vCdirPath))
+mem=47
+ppn=4
+
+# ftpjobs.og=ftpjobs=gsub("../fastq/","",grep("FTPJob-FTPexceRptPipeline-",list.dirs("../fastq",recursive = F),value = T))
+ftpjobs.og=ftpjobs=unique(pplWcmmVStatus$ftpJob)
+AD.studies=c("EXR-KJENS1sPlvS2-AN","EXR-KJENS1yrpQwk-AN")
+AD.ftpjobs=c("FTPJob-FTPexceRptPipeline-DzsvCq-8500","FTPJob-FTPexceRptPipeline-rElftB-3532")
+```
+
+## setup pplStatus Table (please skip)
+```{r Copy_pplWcmmVStatus}
+# require(R.utils)
+# pplWcmmVStatus=pplStatus[,c("ftpJob","studyCohort","sampleName","ERCCsampleName","fqExist","sampleStatus","timeStamp","vcfSize","errType")]
+# pplWcmmVStatus[,c("sampleStatus","fqExist","timeStamp","vcfSize","errType")]=NA
+# save(pplWcmmVStatus,file = "pplWcmmVStatus.RData")
+```
+
+## cleanup previous jobs
+unknown -sentWRamX -failedX -failedLowMem -failPostSTAR -success
+
+```{r cleanUp}
+rm(list=setdiff(ls(), c("ftpjobs","ftpjobs.og","ref","vCdirPath","mem","pplWcmmVStatus","ppn","refdirName")))
+length(ftpjobs)
+ftpjobsStatus=sapply(unique(pplWcmmVStatus$ftpJob), function(x) sum(pplWcmmVStatus$ftpJob==x)==sum(pplWcmmVStatus[pplWcmmVStatus$ftpJob==x,"sampleStatus"]=="success"))
+ftpjobs.success=ftpjobs[ftpjobsStatus]
+for (ftpjob.success in ftpjobs.success){
+  pplWcmmVStatus$studyStatus[pplWcmmVStatus$ftpJob==ftpjob.success]="success"
+}
+ftpjobs=ftpjobs[!ftpjobs %in% ftpjobs.success]
+length(ftpjobs)
+
+for (ftpjob in ftpjobs){
+  # temp=read.table(sprintf("../fastq/%s/%s.bspath.tsv",ftpjob,ftpjob),stringsAsFactors = F)
+  temp=pplWcmmVStatus[pplWcmmVStatus$ftpJob==ftpjob,]
+  study=unique(temp[,"studyCohort"])
+  # pplWcmmVStatus.ftp=pplWcmmVStatus[pplWcmmVStatus$ftpJob=ftpjob,]
+  print(sprintf("cleaning and updating succeeded samples in ftpjob %s: %s, study:%s",which(ftpjobs.og==ftpjob),ftpjob,study))
+  sampleNames=temp$sampleName
+  names(sampleNames)=NULL
+  
+  # update pplWcmmVStatus after untar; "success" if filtered.vcf.gz exist and size >0
+  calledStatus=sapply(sampleNames, 
+                      function(x) file.exists(sprintf("%s/%s/%s/vCall_%s/%s.filtered.vcf.gz",
+                                                      vCdirPath,study,x,ref,x)) & file.size(sprintf("%s/%s/%s/vCall_%s/%s.filtered.vcf.gz",
+                                                                                                    vCdirPath,study,x,ref,x))>0) 
+  tarredStatus.unfinJob=sapply(sampleNames,
+                               function(x) file.exists(sprintf("%s/%s/%s/vCall_%s/%s.bam.tar.gz",
+                                                               vCdirPath,study,x,ref,x)) & file.size(sprintf("%s/%s/%s/vCall_%s/%s.bam.tar.gz",
+                                                                                                             vCdirPath,study,x,ref,x))>0)
+  tarredStatus.finJob=sapply(sampleNames,
+                             function(x) file.exists(sprintf("%s/%s/%s/vCall_%s/%s.tar.gz",
+                                                             vCdirPath,study,x,ref,x)) & file.size(sprintf("%s/%s/%s/vCall_%s/%s.tar.gz",
+                                                                                                           vCdirPath,study,x,ref,x))>0)
+  if(any(tarredStatus.finJob & tarredStatus.unfinJob)){
+    for (sampleName in sampleNames[tarredStatus.finJob & tarredStatus.unfinJob]){
+      system(sprintf("rm %s/%s/%s/vCall_%s/%s.bam.tar.gz",vCdirPath,study,sampleName,ref,sampleName))
+    }
+    rm(sampleName)
+  }
+  
+  # untar newly finished job
+  samplesNewFinJob = sampleNames[(!calledStatus) & tarredStatus.finJob]
+  if(length(samplesNewFinJob)>0){
+    for(sampleName in samplesNewFinJob){
+      system(sprintf("tar -zxvf %s/%s/%s/vCall_%s/%s.tar.gz -C %s/%s/%s/vCall_%s %s.filtered.vcf.gz",
+                     vCdirPath,study,sampleName,ref,sampleName,
+                     vCdirPath,study,sampleName,ref,sampleName,
+                     sampleName))
+      pplWcmmVStatus[sampleName,"sampleStatus"]="tarSuccess"
+      pplWcmmVStatus[sampleName,"timeStamp"]=paste(unlist(strsplit(date()," "))[c(2,3,5,4)],collapse = "/")
+      
+    }
+    rm(sampleName)
+  }
+  
+  # update calledStatus and clean files for new success
+  calledStatus=sapply(sampleNames,
+                      function(x) file.exists(sprintf("%s/%s/%s/vCall_%s/%s.filtered.vcf.gz",
+                                                      vCdirPath,study,x,ref,x)) & file.size(sprintf("%s/%s/%s/vCall_%s/%s.filtered.vcf.gz",
+                                                                                                    vCdirPath,study,x,ref,x))>0)
+  sampleNames.oldfinished=pplWcmmVStatus$sampleName[pplWcmmVStatus$ftpJob==ftpjob & pplWcmmVStatus$sampleStatus=="success"]
+  if(length(sampleNames.oldfinished)>0){
+    sampleNames.newfinished=sampleNames[calledStatus][!sampleNames[calledStatus] %in% sampleNames.oldfinished]
+  }else{
+    sampleNames.newfinished=sampleNames[calledStatus]
+  }
+  
+  # cleanfiles
+  # if(any(pplWcmmVStatus[sampleNames,"sampleStatus"]!="success" & tarredStatus.finJob)){
+  #   samples2cleanup=sampleNames[pplWcmmVStatus[sampleNames,"sampleStatus"]!="success" & tarredStatus.finJob] # clean only newly finished jobs
+  #   for(sampleName in samples2cleanup){
+  #     print(sprintf("cleaning %s",sampleName))
+  #     
+  #     # # clean fastq files
+  #     # if (ftpjob !="FTPJob-FTPexceRptPipeline-iEq7BE-0548"){
+  #     #   fqPath=sprintf("%s/../fastq/%s/%s.fastq.gz",vCdirPath,ftpjob,sampleName) 
+  #     #   if(file.exists(fqPath)){
+  #     #     system(sprintf("rm -rf %s",fqPath))
+  #     #   }else if(grepl(".fq.gz",sampleName) & file.exists(gsub("fastq.gz","",fqPath))){
+  #     #     system(sprintf("rm -rf %s",gsub("fastq.gz","",fqPath)))
+  #     #   }
+  #     # }
+  #     # only save vcf and tar file
+  #     opPath=sprintf("%s/%s/%s/vCall_%s",
+  #                    vCdirPath,study,sampleName,ref)
+  #     files=list.files(path = opPath,include.dirs = T)
+  #     files2rm=files[!grepl("vcf|tar",files)] 
+  #     for (file2rm in files2rm){
+  #       system(sprintf("rm -rf %s/%s",opPath,file2rm))
+  #     }
+  #     
+  #   }
+  #   rm(sampleName)
+  # }
+  
+  
+  pplWcmmVStatus[sampleNames.newfinished,"sampleStatus"]="success"
+  pplWcmmVStatus[sampleNames.newfinished,"timeStamp"]=paste(unlist(strsplit(date()," "))[c(2,3,5,4)],collapse = "/")
+  # pplWcmmVStatus[sampleNames,c(2,3,5,6,7)]
+  
+  
+  pplWcmmVStatus[sampleNames[tarredStatus.unfinJob & (!calledStatus)],"sampleStatus"]="probFailedLowMem"
+  pplWcmmVStatus[sampleNames[tarredStatus.unfinJob & (!calledStatus)],"timeStamp"]=paste(unlist(strsplit(date()," "))[c(2,3,5,4)],collapse = "/")
+  save(pplWcmmVStatus,file = sprintf("%s/pplWcmmVStatus.RData",vCdirPath))
+}
+```
+
+## run jobs and update pplWcmmVStatus
+
+```{r sendpbsjobs, echo=FALSE}
+rm(list=setdiff(ls(), c("ftpjobs","ftpjobs.og","ref","vCdirPath","mem","pplWcmmVStatus","ppn","refdirName")))
+length(ftpjobs)
+ftpjobsStatus=sapply(unique(pplWcmmVStatus$ftpJob), function(x)
+  sum(pplWcmmVStatus$ftpJob==x)==sum(pplWcmmVStatus[pplWcmmVStatus$ftpJob==x,"sampleStatus"]=="success"))
+ftpjobs.success=ftpjobs[ftpjobsStatus]
+for (ftpjob.success in ftpjobs.success){
+  pplWcmmVStatus$studyStatus[pplWcmmVStatus$ftpJob==ftpjob.success]="success"
+}
+ftpjobs=ftpjobs[!ftpjobs %in% ftpjobs.success]
+length(ftpjobs)
+
+
+for (ftpjob in ftpjobs[41:68]){ #[2:length(ftpjobs)]
+    study=pplWcmmVStatus[pplWcmmVStatus$ftpJob==ftpjob,"studyCohort"][1]
+    sampleNames=pplWcmmVStatus[pplWcmmVStatus$ftpJob==ftpjob,"sampleName"]
+    # sampleNames=sampleNames[pplWcmmVStatus[sampleNames,"hg38refsampleStatus"] %in% c("success","probFailedLowMem","failedLowMem")]
+    fqPaths=sapply(sampleNames, function(x) sprintf("%s/../fastq/%s/%s.fastq.gz",vCdirPath,ftpjob,x))
+    fqPaths.exist=sapply(fqPaths, function(x) file.exists(x))
+    sampleNames=sampleNames[fqPaths.exist]
+    # submit jobs
+    samplesStatus=pplWcmmVStatus$sampleStatus[match(sampleNames,pplWcmmVStatus$sampleName)]
+    samples2submit=sampleNames[samplesStatus %in% c("probFailedLowMem") | is.na(samplesStatus)]
+        print(sprintf("sending vCall jobs in ftpjob %s: %s, study:%s, n=%s/%s in total",
+                  which(ftpjobs.og==ftpjob),ftpjob,study,length(samples2submit),sum(fqPaths.exist)))
+    if(length(samples2submit)>0){
+      print(samples2submit)
+      for (sampleName in samples2submit[1:length(samples2submit)]){ #
+        # sampleName=samples2submit[1]
+        dir.create(sprintf("../vCall/%s/%s/vCall_%s",study,sampleName,ref),
+                   showWarnings = F,
+                   recursive = T,
+                   mode = "0777")
+        # script="ppl_vCall_maskedhg38_Hr4Rm23Prc4.txt"
+        script=sprintf("ppl_vCall_maskedhg38WcmmV_Hr4Rm%sPrc%s.txt",mem,ppn)
+        cmd=sprintf("cd %s/%s/%s && qsub -v ref=%s,refdirName=%s,ftpjob=%s,study=%s,sample=%s ../../%s",
+                    vCdirPath,study,sampleName,
+                    ref,refdirName,ftpjob,study,sampleName,script
+        )
+        system(cmd)
+        pplWcmmVStatus[sampleName,"sampleStatus"]=sprintf("submitW%sgb%sprc",mem,ppn)
+        pplWcmmVStatus[sampleName,"timeStamp"]=paste(unlist(strsplit(date()," "))[c(2,3,5,4)],collapse = "/")
+        save(pplWcmmVStatus,file = sprintf("%s/pplWcmmVStatus.RData",vCdirPath))
+        system("sleep 1s")
+      }
+      rm(cmd)
+    }
+  # }
+}
+rm(fqPaths.exist)
+```
+
+# checking one sample
+```{r one sample}
+sampleName="CTOT04_02_Urine_24-9" #"30_CACCGG_L002_R1_001"#"132_CTAGCT_L008_R1_001", "
+sampleName=rownames(pplWcmmVStatus[6162,]) 
+sampleName="L1796_S35_R1_001"
+sampleName="EXR-JFREE13703-DO"
+# IG_S04_1_C_R1_001 normal
+# 237-6004 faillow 6014-6134 failow 6163-6236 not determined
+ref=c("broad-hg38.masked","broad-hg38.masked.WcmmV")[1]
+ftpjob=pplWcmmVStatus[sampleName,"ftpJob"]
+study=pplWcmmVStatus[sampleName,"studyCohort"]
+fqPath=sprintf("%s/../fastq/%s/%s.fastq.gz",vCdirPath,ftpjob,sampleName)
+opPath=sprintf("%s/%s/%s/vCall_%s",
+                     vCdirPath,study,sampleName,ref)
+
+```
